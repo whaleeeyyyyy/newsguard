@@ -5,3 +5,10 @@ One-line: Real-time news analyzer that summarizes articles, detects sentiment, a
 ## Day 1
 
 Scaffolded frontend & backend, added env examples and wireframe notes.
+
+## Environment Variables
+
+1. Copy the example env file:
+   ```bash
+   cp .env.example .env
+   ```
