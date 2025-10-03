@@ -1,7 +1,8 @@
 fastapi
 uvicorn
+sqlalchemy
+psycopg2-binary
 python-dotenv
 requests
-psycopg2-binary 
-sqlalchemy
-huggingface-hub
+transformers
+sentencepiece

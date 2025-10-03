@@ -1,159 +1,145 @@
-# backend/app/main.py
-import os
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Depends
-from pydantic import BaseModel
-import requests
-from backend.db import SessionLocal, engine  
+from fastapi import FastAPI, Depends, HTTPException, Query, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
 from sqlalchemy.orm import Session
-from .models import Article
-from fastapi import HTTPException
-from backend.hf_client import summarize, sentiment, bias
-from backend.db import SessionLocal, Article
+from typing import List, Optional
+from datetime import datetime
+import aioredis
+import logging
+import os
 
+from backend.db import init_db, get_db, Article
+from backend.newsapi_client import fetch_top_headlines
+from pydantic import BaseModel
+from dotenv import load_dotenv
 
-load_dotenv()  # loads .env in project root when running from project root
+load_dotenv()
 
-NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
-HF_TOKEN = os.getenv("HF_TOKEN")
+# Initialize database
+init_db()
 
-if not NEWSAPI_KEY:
-    raise RuntimeError("NEWSAPI_KEY not set in environment")
-if not HF_TOKEN:
-    # Not fatal — you can still run basic fetch without HF summarization,
-    # but for summarization HF_TOKEN is required. Uncomment raise if you want strict enforcement.
-    # raise RuntimeError("HF_TOKEN not set in environment")
-    pass
+# Setup logging
+logging.basicConfig(level=logging.INFO, filename="api_access.log",
+                    format="%(asctime)s - %(levelname)s - %(message)s")
 
-app = FastAPI(title="NewsGuard AI Backend")
+# FastAPI app
+app = FastAPI(
+    title="NewsGuard AI Backend",
+    description="AI-powered news analysis platform",
+    version="1.0.0"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# API key verification
+API_KEY = os.getenv("NEWSGUARD_API_KEY", "test123")  # Default key for dev/testing
+
+def verify_api_key(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+# Rate limiter startup
+@app.on_event("startup")
+async def startup():
+    redis = await aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
+    await FastAPILimiter.init(redis)
+
+# Pydantic models
+class ArticleResponse(BaseModel):
+    id: int
+    title: str
+    url: str
+    source: Optional[str]
+    published_at: datetime
+    summary: Optional[str]
+    sentiment: Optional[str]
+    bias: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class FetchResponse(BaseModel):
     ingested: int
-    summaries: dict | None = None
+    message: str
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+# Middleware for request logging
+@app.middleware("http")
+async def log_requests(request, call_next):
+    response = await call_next(request)
+    logging.info(f"{request.client.host} - {request.method} {request.url} - {response.status_code}")
+    return response
 
-def fetch_headlines_from_newsapi(query: str = "world", page_size: int = 5):
-    """Return a list of articles (title + description + url). Uses NewsAPI.org top-headlines / everything endpoint."""
-    url = "https://newsapi.org/v2/everything"
-    params = {
-        "q": query,
-        "pageSize": page_size,
-        "language": "en",
-        "sortBy": "relevancy",
-        "apiKey": NEWSAPI_KEY,
-    }
-    r = requests.get(url, params=params, timeout=10)
-    if r.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"NewsAPI error: {r.status_code} {r.text}")
-    data = r.json()
-    articles = data.get("articles", [])
-    results = []
-    for a in articles:
-        results.append({
-            "title": a.get("title"),
-            "description": a.get("description"),
-            "url": a.get("url"),
-            "source": a.get("source", {}).get("name"),
-        })
-    return results
+# Root endpoint
+@app.get("/", dependencies=[Depends(verify_api_key)])
+def read_root():
+    return {"message": "NewsGuard AI Backend is running!"}
 
-def summarize_with_hf(text: str, model: str = "facebook/bart-large-cnn"):
-    """Call Hugging Face Inference API to summarize text. Returns string summary or None on failure."""
-    if not HF_TOKEN:
-        return None
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {"inputs": text}
-    hf_url = f"https://api-inference.huggingface.co/models/{model}"
-    r = requests.post(hf_url, headers=headers, json=payload, timeout=20)
-    if r.status_code != 200:
-        # return None or raise depending on your preference
-        return None
-    resp = r.json()
-    # Many summarization models return a list of dicts with "summary_text"
-    if isinstance(resp, list) and len(resp) > 0 and isinstance(resp[0], dict):
-        return resp[0].get("summary_text") or resp[0].get("generated_text")
-    # If HF returns other shapes, try to pick something
-    if isinstance(resp, dict) and "summary_text" in resp:
-        return resp["summary_text"]
-    return None
-
-@app.get("/news/fetch", response_model=FetchResponse)
-def fetch_news(q: str = Query("world", description="Search query"),
-               limit: int = Query(5, ge=1, le=20, description="Number of articles to fetch")):
-    # 1) Fetch headlines
-    articles = fetch_headlines_from_newsapi(query=q, page_size=limit)
-
-    # 2) Optionally summarize each article description (or title if no description)
-    summaries = {}
-    for i, art in enumerate(articles):
-        text_to_summarize = art.get("description") or art.get("title") or ""
-        if not text_to_summarize:
-            summaries[i] = None
-            continue
-        summary = summarize_with_hf(text_to_summarize)
-        summaries[i] = summary
-
-    # placeholder: ingest into DB later
-    ingested = len(articles)
-
-    return {"ingested": ingested, "summaries": summaries}
-
-
-def get_db():
-    db = SessionLocal()
+# Fetch news from NewsAPI
+@app.get("/news/fetch", response_model=FetchResponse,
+         dependencies=[Depends(verify_api_key), Depends(RateLimiter(times=5, seconds=60))])
+def fetch_news(q: Optional[str] = None, country: str = "us", db: Session = Depends(get_db)):
     try:
-        yield db
-    finally:
-        db.close()
+        articles = fetch_top_headlines(country=country, q=q, page_size=10)
+        count = 0
+        for article_data in articles:
+            if not article_data.get("url") or not article_data.get("title"):
+                continue
+            exists = db.query(Article).filter(Article.url == article_data["url"]).first()
+            if exists:
+                continue
+            published_at = None
+            try:
+                if article_data.get("publishedAt"):
+                    published_str = article_data["publishedAt"].replace("Z", "+00:00")
+                    published_at = datetime.fromisoformat(published_str)
+            except (ValueError, AttributeError):
+                published_at = datetime.utcnow()
+            article = Article(
+                title=article_data["title"],
+                url=article_data["url"],
+                source=article_data.get("source", {}).get("name"),
+                published_at=published_at,
+                raw_text=article_data.get("content") or article_data.get("description") or ""
+            )
+            db.add(article)
+            count += 1
+        db.commit()
+        return {"ingested": count, "message": f"Successfully ingested {count} new articles"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/")
-def root(db: Session = Depends(get_db)):
-    count = db.query(Article).count()
-    return {"message": f"There are {count} articles in the database."}
+# List articles
+@app.get("/news", response_model=List[ArticleResponse],
+         dependencies=[Depends(verify_api_key)])
+def list_articles(limit: int = 20, db: Session = Depends(get_db)):
+    articles = db.query(Article).order_by(Article.published_at.desc()).limit(limit).all()
+    return articles
 
-@app.post("/news/enrich/{article_id}")
-def enrich_article(article_id: int):
-    db = SessionLocal()
+# Get article by ID
+@app.get("/news/{article_id}", response_model=ArticleResponse,
+         dependencies=[Depends(verify_api_key)])
+def get_article(article_id: int, db: Session = Depends(get_db)):
     article = db.query(Article).filter(Article.id == article_id).first()
     if not article:
-        db.close()
         raise HTTPException(status_code=404, detail="Article not found")
-    if not article.raw_text:
-        db.close()
-        raise HTTPException(status_code=400, detail="No text to analyze")
-    
-    # HuggingFace enrichment
-    article.summary = summarize(article.raw_text)
-    article.sentiment = sentiment(article.raw_text)
-    article.bias = bias(article.raw_text)
+    return article
 
-    db.commit()
-    db.close()
-    return {
-        "id": article.id,
-        "summary": article.summary,
-        "sentiment": article.sentiment,
-        "bias": article.bias
-    }
-
-@app.post("/news/enrich_all")
-def enrich_all(limit: int = 10):
-    db = SessionLocal()
-    articles = db.query(Article).filter(Article.summary.is_(None)).limit(limit).all()
-    enriched = []
-    for article in articles:
-        if not article.raw_text:
-            continue
-        try:
-            article.summary = summarize(article.raw_text)
-            article.sentiment = sentiment(article.raw_text)
-            article.bias = bias(article.raw_text)
-            enriched.append(article.id)
-        except Exception as e:
-            print(f"Error enriching {article.id}: {e}")
-    db.commit()
-    db.close()
-    return {"enriched_articles": enriched}
+# Search articles by keyword (Day 4)
+@app.get("/news/search", response_model=List[ArticleResponse],
+         dependencies=[Depends(verify_api_key), Depends(RateLimiter(times=10, seconds=60))])
+def search_articles(q: str = Query(...), page: int = 1, limit: int = 20, db: Session = Depends(get_db)):
+    query = db.query(Article).filter(
+        Article.title.ilike(f"%{q}%") | Article.raw_text.ilike(f"%{q}%")
+    ).order_by(Article.published_at.desc())
+    articles = query.offset((page-1)*limit).limit(limit).all()
+    return articles
