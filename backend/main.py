@@ -1,9 +1,16 @@
 # backend/app/main.py
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from pydantic import BaseModel
 import requests
+from backend.db import SessionLocal, engine  
+from sqlalchemy.orm import Session
+from .models import Article
+from fastapi import HTTPException
+from backend.hf_client import summarize, sentiment, bias
+from backend.db import SessionLocal, Article
+
 
 load_dotenv()  # loads .env in project root when running from project root
 
@@ -93,3 +100,60 @@ def fetch_news(q: str = Query("world", description="Search query"),
     ingested = len(articles)
 
     return {"ingested": ingested, "summaries": summaries}
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/")
+def root(db: Session = Depends(get_db)):
+    count = db.query(Article).count()
+    return {"message": f"There are {count} articles in the database."}
+
+@app.post("/news/enrich/{article_id}")
+def enrich_article(article_id: int):
+    db = SessionLocal()
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        db.close()
+        raise HTTPException(status_code=404, detail="Article not found")
+    if not article.raw_text:
+        db.close()
+        raise HTTPException(status_code=400, detail="No text to analyze")
+    
+    # HuggingFace enrichment
+    article.summary = summarize(article.raw_text)
+    article.sentiment = sentiment(article.raw_text)
+    article.bias = bias(article.raw_text)
+
+    db.commit()
+    db.close()
+    return {
+        "id": article.id,
+        "summary": article.summary,
+        "sentiment": article.sentiment,
+        "bias": article.bias
+    }
+
+@app.post("/news/enrich_all")
+def enrich_all(limit: int = 10):
+    db = SessionLocal()
+    articles = db.query(Article).filter(Article.summary.is_(None)).limit(limit).all()
+    enriched = []
+    for article in articles:
+        if not article.raw_text:
+            continue
+        try:
+            article.summary = summarize(article.raw_text)
+            article.sentiment = sentiment(article.raw_text)
+            article.bias = bias(article.raw_text)
+            enriched.append(article.id)
+        except Exception as e:
+            print(f"Error enriching {article.id}: {e}")
+    db.commit()
+    db.close()
+    return {"enriched_articles": enriched}
