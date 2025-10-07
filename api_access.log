@@ -1,0 +1,56 @@
+2025-10-04 21:28:32,904 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/ - 422
+2025-10-04 21:28:33,143 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/favicon.ico - 404
+2025-10-04 21:28:40,953 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/docs - 200
+2025-10-04 21:28:41,852 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/openapi.json - 200
+2025-10-04 21:34:02,939 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/docs - 200
+2025-10-04 21:34:03,448 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/openapi.json - 200
+2025-10-04 21:35:58,179 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/news/fetch?q=trump&country=us - 200
+2025-10-04 21:36:10,777 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/news?limit=20 - 200
+2025-10-04 21:37:06,827 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich/1 - 500
+2025-10-04 21:38:33,152 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich/1 - 500
+2025-10-04 21:39:19,962 - ERROR - Error enriching article 1: HF API Error 404: Not Found
+Traceback (most recent call last):
+  File "C:\Users\whale\OneDrive\Desktop\newsguard\backend\main.py", line 140, in enrich_all
+    article.sentiment = sentiment(article.raw_text)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\whale\OneDrive\Desktop\newsguard\backend\hf_client.py", line 64, in sentiment
+    res = _hf_request("distilbert-base-uncased-finetuned-sst-2-english", payload, task="sentiment")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\whale\OneDrive\Desktop\newsguard\backend\hf_client.py", line 47, in _hf_request
+    raise RuntimeError(f"HF API Error {r.status_code}: {r.text}")
+RuntimeError: HF API Error 404: Not Found
+2025-10-04 21:39:20,079 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich_all?limit=2 - 200
+2025-10-04 21:39:35,064 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich/1 - 500
+2025-10-04 21:43:45,553 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/docs - 200
+2025-10-04 21:43:45,906 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/openapi.json - 200
+2025-10-04 21:44:05,807 - WARNING - HF returned status 404 on attempt 1: Not Found
+2025-10-04 21:44:05,807 - INFO - Retrying HF request in 1.2 seconds (attempt 1/4)
+2025-10-04 21:44:08,550 - WARNING - HF returned status 404 on attempt 2: Not Found
+2025-10-04 21:44:08,550 - INFO - Retrying HF request in 2.2 seconds (attempt 2/4)
+2025-10-04 21:44:12,254 - WARNING - HF returned status 404 on attempt 3: Not Found
+2025-10-04 21:44:12,254 - INFO - Retrying HF request in 4.8 seconds (attempt 3/4)
+2025-10-04 21:44:18,115 - WARNING - HF returned status 404 on attempt 4: Not Found
+2025-10-04 21:44:18,181 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich/1 - 500
+2025-10-04 22:15:45,927 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/.well-known/appspecific/com.chrome.devtools.json - 404
+2025-10-04 22:17:54,907 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/docs - 200
+2025-10-04 22:17:54,962 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/.well-known/appspecific/com.chrome.devtools.json - 404
+2025-10-04 22:17:55,388 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/openapi.json - 200
+2025-10-04 22:18:04,255 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/_debug/health - 200
+2025-10-04 22:20:09,010 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/docs - 200
+2025-10-04 22:20:09,058 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/.well-known/appspecific/com.chrome.devtools.json - 404
+2025-10-04 22:20:09,426 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/openapi.json - 200
+2025-10-04 22:20:15,210 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/_debug/health - 200
+2025-10-04 22:20:59,079 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/docs - 200
+2025-10-04 22:20:59,128 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/.well-known/appspecific/com.chrome.devtools.json - 404
+2025-10-04 22:20:59,451 - INFO - 127.0.0.1 - GET http://127.0.0.1:8000/openapi.json - 200
+2025-10-04 22:21:11,466 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich/2 - 400
+2025-10-04 22:21:25,775 - INFO - HF model=facebook/bart-large-cnn attempt=1 status=200 body=[{"summary_text":"Bad Bunny is poised to make history as the first Super Bowl halftime artist to perform solely in Spanish. Donald Trump’s former campaign manager Corey Lewandowski warned that ICE agents will be pr…"}]
+2025-10-04 22:21:26,721 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=1 status=404 body=Not Found
+2025-10-04 22:21:26,722 - INFO - Retrying HF request in 1.2 seconds (attempt 1/4)
+2025-10-04 22:21:28,814 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=2 status=404 body=Not Found
+2025-10-04 22:21:28,814 - INFO - Retrying HF request in 2.2 seconds (attempt 2/4)
+2025-10-04 22:21:31,919 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=3 status=404 body=Not Found
+2025-10-04 22:21:31,919 - INFO - Retrying HF request in 4.8 seconds (attempt 3/4)
+2025-10-04 22:21:37,679 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=4 status=404 body=Not Found
+2025-10-04 22:21:37,680 - ERROR - HF API unrecoverable error model=distilbert-base-uncased-finetuned-sst-2-english status=404 body=Not Found
+2025-10-04 22:21:37,741 - INFO - 127.0.0.1 - POST http://127.0.0.1:8000/news/enrich/1 - 500

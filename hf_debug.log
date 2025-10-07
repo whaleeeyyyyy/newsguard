@@ -1,0 +1,9 @@
+2025-10-04 22:21:25,775 - INFO - HF model=facebook/bart-large-cnn attempt=1 status=200 body=[{"summary_text":"Bad Bunny is poised to make history as the first Super Bowl halftime artist to perform solely in Spanish. Donald Trump’s former campaign manager Corey Lewandowski warned that ICE agents will be pr…"}]
+2025-10-04 22:21:26,721 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=1 status=404 body=Not Found
+2025-10-04 22:21:26,722 - INFO - Retrying HF request in 1.2 seconds (attempt 1/4)
+2025-10-04 22:21:28,814 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=2 status=404 body=Not Found
+2025-10-04 22:21:28,814 - INFO - Retrying HF request in 2.2 seconds (attempt 2/4)
+2025-10-04 22:21:31,919 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=3 status=404 body=Not Found
+2025-10-04 22:21:31,919 - INFO - Retrying HF request in 4.8 seconds (attempt 3/4)
+2025-10-04 22:21:37,679 - INFO - HF model=distilbert-base-uncased-finetuned-sst-2-english attempt=4 status=404 body=Not Found
+2025-10-04 22:21:37,680 - ERROR - HF API unrecoverable error model=distilbert-base-uncased-finetuned-sst-2-english status=404 body=Not Found

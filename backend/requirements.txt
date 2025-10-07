@@ -6,3 +6,4 @@ python-dotenv
 requests
 transformers
 sentencepiece
+pydantic

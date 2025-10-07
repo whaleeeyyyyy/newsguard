@@ -1,58 +1,45 @@
+# backend/main.py
+import os
 from fastapi import FastAPI, Depends, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_limiter import FastAPILimiter
-from fastapi_limiter.depends import RateLimiter
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-import aioredis
 import logging
-import os
 
 from backend.db import init_db, get_db, Article
 from backend.newsapi_client import fetch_top_headlines
+from backend.hf_client import summarize, sentiment, bias
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize database
+# Initialize DB (creates tables if needed)
 init_db()
 
-# Setup logging
+# logging
 logging.basicConfig(level=logging.INFO, filename="api_access.log",
                     format="%(asctime)s - %(levelname)s - %(message)s")
 
-# FastAPI app
-app = FastAPI(
-    title="NewsGuard AI Backend",
-    description="AI-powered news analysis platform",
-    version="1.0.0"
-)
+API_KEY = os.getenv("NEWSGUARD_API_KEY", "test123")
 
-# CORS
+app = FastAPI(title="NewsGuard AI Backend", version="1.0.0")
+
+# CORS (adjust origin as needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# API key verification
-API_KEY = os.getenv("NEWSGUARD_API_KEY", "test123")  # Default key for dev/testing
-
 def verify_api_key(x_api_key: str = Header(...)):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-# Rate limiter startup
-@app.on_event("startup")
-async def startup():
-    redis = await aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
-    await FastAPILimiter.init(redis)
-
-# Pydantic models
+# Pydantic responses
 class ArticleResponse(BaseModel):
     id: int
     title: str
@@ -71,21 +58,17 @@ class FetchResponse(BaseModel):
     ingested: int
     message: str
 
-# Middleware for request logging
 @app.middleware("http")
 async def log_requests(request, call_next):
     response = await call_next(request)
     logging.info(f"{request.client.host} - {request.method} {request.url} - {response.status_code}")
     return response
 
-# Root endpoint
 @app.get("/", dependencies=[Depends(verify_api_key)])
 def read_root():
     return {"message": "NewsGuard AI Backend is running!"}
 
-# Fetch news from NewsAPI
-@app.get("/news/fetch", response_model=FetchResponse,
-         dependencies=[Depends(verify_api_key), Depends(RateLimiter(times=5, seconds=60))])
+@app.get("/news/fetch", response_model=FetchResponse, dependencies=[Depends(verify_api_key)])
 def fetch_news(q: Optional[str] = None, country: str = "us", db: Session = Depends(get_db)):
     try:
         articles = fetch_top_headlines(country=country, q=q, page_size=10)
@@ -106,7 +89,7 @@ def fetch_news(q: Optional[str] = None, country: str = "us", db: Session = Depen
             article = Article(
                 title=article_data["title"],
                 url=article_data["url"],
-                source=article_data.get("source", {}).get("name"),
+                source=(article_data.get("source") or {}).get("name") if article_data.get("source") else None,
                 published_at=published_at,
                 raw_text=article_data.get("content") or article_data.get("description") or ""
             )
@@ -118,28 +101,59 @@ def fetch_news(q: Optional[str] = None, country: str = "us", db: Session = Depen
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# List articles
-@app.get("/news", response_model=List[ArticleResponse],
-         dependencies=[Depends(verify_api_key)])
+@app.get("/news", response_model=List[ArticleResponse], dependencies=[Depends(verify_api_key)])
 def list_articles(limit: int = 20, db: Session = Depends(get_db)):
     articles = db.query(Article).order_by(Article.published_at.desc()).limit(limit).all()
     return articles
 
-# Get article by ID
-@app.get("/news/{article_id}", response_model=ArticleResponse,
-         dependencies=[Depends(verify_api_key)])
-def get_article(article_id: int, db: Session = Depends(get_db)):
+@app.post("/news/enrich/{article_id}", dependencies=[Depends(verify_api_key)])
+def enrich_article(article_id: int, db: Session = Depends(get_db)):
     article = db.query(Article).filter(Article.id == article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    return article
+    if not article.raw_text:
+        raise HTTPException(status_code=400, detail="No text to analyze")
+    try:
+        s = summarize(article.raw_text)
+        sent = sentiment(article.raw_text)
+        b = bias(article.raw_text)
+        article.summary = s
+        article.sentiment = sent
+        article.bias = b
+        db.commit()
+        return {"id": article.id, "summary": s, "sentiment": sent, "bias": b}
+    except Exception as e:
+        db.rollback()
+        # DEV: return error detail and hint; in prod, return generic message only
+        raise HTTPException(status_code=500, detail=f"Enrichment failed: {str(e)}")
 
-# Search articles by keyword (Day 4)
-@app.get("/news/search", response_model=List[ArticleResponse],
-         dependencies=[Depends(verify_api_key), Depends(RateLimiter(times=10, seconds=60))])
-def search_articles(q: str = Query(...), page: int = 1, limit: int = 20, db: Session = Depends(get_db)):
-    query = db.query(Article).filter(
-        Article.title.ilike(f"%{q}%") | Article.raw_text.ilike(f"%{q}%")
-    ).order_by(Article.published_at.desc())
-    articles = query.offset((page-1)*limit).limit(limit).all()
-    return articles
+
+@app.post("/news/enrich_all", dependencies=[Depends(verify_api_key)])
+def enrich_all(limit: int = 10, db: Session = Depends(get_db)):
+    # find un-enriched articles (summary is NULL)
+    articles = db.query(Article).filter(Article.summary.is_(None)).limit(limit).all()
+    enriched = []
+    for article in articles:
+        if not article.raw_text:
+            continue
+        try:
+            article.summary = summarize(article.raw_text)
+            article.sentiment = sentiment(article.raw_text)
+            article.bias = bias(article.raw_text)
+            enriched.append(article.id)
+        except Exception as e:
+            # continue on errors but log them
+            logging.exception(f"Error enriching article {article.id}: {e}")
+    db.commit()
+    return {"enriched_articles": enriched}
+
+@app.get("/_debug/health")
+def debug_health(db: Session = Depends(get_db)):
+    import os
+    from backend.hf_client import _get_cached  # or just import HF_TOKEN
+    return {
+        "db_connected": True,   # if get_db didn't raise
+        "hf_token_present": bool(os.getenv("HF_TOKEN")),
+        "sample_cache_keys": list(_get_cached.__name__ if hasattr(_get_cached,'__name__') else [])[:5]
+    }
+
