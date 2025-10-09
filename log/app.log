@@ -1,3 +1,13 @@
 2025-10-08 21:50:47,959 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
 2025-10-08 21:53:57,800 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
 2025-10-08 21:54:56,638 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:15:21,483 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:17:36,817 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:18:12,857 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:19:35,692 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:19:40,587 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:19:48,271 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=id&limit=1 "HTTP/2 404 Not Found"
+2025-10-08 22:24:24,319 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-08 22:24:33,159 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=id&limit=1 "HTTP/2 200 OK"
+2025-10-08 22:24:40,751 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=%2A "HTTP/2 200 OK"
+2025-10-08 22:25:21,661 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=%2A&limit=1 "HTTP/2 200 OK"

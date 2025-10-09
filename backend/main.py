@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Header, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 import aiohttp, redis.asyncio as redis, json, os, logging, datetime
 
 from supabase import create_client, Client
+from dotenv import load_dotenv
 import os
 import logging
 from logging.handlers import RotatingFileHandler
@@ -38,6 +39,7 @@ logging.info("Logging initialized. Log file: %s", LOG_FILE)
 # ---------------------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------------------
+load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -114,25 +116,33 @@ async def verify_api_key(x_api_key: str = Header(...)):
 # ENDPOINTS
 # ---------------------------------------------------------------------
 @app.get("/health")
-async def health():
-    """Check DB, Redis, and Hugging Face status."""
+async def health_check():
     try:
-        async with app.state.db.acquire() as conn:
-            await conn.execute("SELECT 1")
-        await app.state.redis.ping()
-        return {"status": "ok"}
+        # Simple Supabase test query (fetch one row)
+        response = supabase.table("news").select("id").limit(1).execute()
+        if response.data is not None:
+            return {"status": "ok", "detail": "Supabase connection successful"}
+        else:
+            return {"status": "warning", "detail": "No data found, but Supabase reachable"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
 
 # ---------------------------------------------------------------------
 # NEWS CRUD
 # ---------------------------------------------------------------------
-@app.get("/news/", response_model=List[Article])
-async def get_articles():
-    async with app.state.db.acquire() as conn:
-        response = supabase.table("news").select("*").eq("category", category).execute()
-        rows = response.data
-        return [dict(r) for r in rows]
+@app.get("/news/", response_model=List[dict])
+async def get_articles(category: str = Query(None, description="Optional category filter")):
+    """
+    Fetch articles from the Supabase 'news' table.
+    Optionally filter by category (?category=tech)
+    """
+    query = supabase.table("news").select("*")
+    
+    if category:
+        query = query.eq("category", category)
+    
+    response = query.execute()
+    return response.data
     
 @app.get("/test_supabase")
 def test_supabase():
