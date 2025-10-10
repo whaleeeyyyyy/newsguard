@@ -11,3 +11,7 @@
 2025-10-08 22:24:33,159 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=id&limit=1 "HTTP/2 200 OK"
 2025-10-08 22:24:40,751 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=%2A "HTTP/2 200 OK"
 2025-10-08 22:25:21,661 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=%2A&limit=1 "HTTP/2 200 OK"
+2025-10-09 18:23:19,732 - INFO - root - Logging initialized. Log file: C:\Users\whale\OneDrive\Desktop\newsguard\log\app.log
+2025-10-09 18:23:39,998 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=id&limit=1 "HTTP/2 200 OK"
+2025-10-09 18:23:49,505 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=%2A "HTTP/2 200 OK"
+2025-10-09 18:24:12,498 - INFO - httpx - HTTP Request: GET https://wsndmovqfqydgtdpsmtj.supabase.co/rest/v1/news?select=%2A&limit=1 "HTTP/2 200 OK"
